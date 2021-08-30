@@ -1,0 +1,111 @@
+---
+- name: DockerContainer AWS Integration
+  hosts: 127.0.0.1
+  gather_facts: false
+  connection: local
+  vars:
+    keyname: my_aws
+    region: "us-east-2"
+    ec2_access_key: 'AKIAVAZK2LN4UCIL3F77'
+    ec2_secret_key: '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'
+
+  tasks:
+    - ec2_instance_facts:
+        aws_access_key: "{{ec2_access_key}}"
+        aws_secret_key: "{{ec2_secret_key}}"
+        region: "{{ region }}"
+      register: result
+   
+    - name: Instances ID
+      debug:
+        msg: "ID: {{ item.instance_id }} - State: {{ item.state.name }} - Public DNS: {{ item.public_dns_name }}"
+      loop: "{{ result.instances }}"
+
+    - name: Upload public key to AWS
+      ec2_key:
+        name: "{{ keyname }}"
+        key_material: "{{ lookup('file', '/home/simon/.ssh/{{ keyname }}.pub') }}"
+        region: "{{ region }}"
+        aws_access_key: "{{ec2_access_key}}"
+        aws_secret_key: "{{ec2_secret_key}}"
+
+    - amazon.aws.ec2:
+        aws_access_key: "{{ec2_access_key}}"
+        aws_secret_key: "{{ec2_secret_key}}"
+        key_name: "{{ keyname }}"
+        region: us-east-2
+        instance_type: t2.micro
+        image: ami-0233c2d874b811deb
+        wait: yes
+        count: 1
+        vpc_subnet_id: subnet-63f3dd2f
+        assign_public_ip: yes
+      register: ec2
+
+    - name: Add all instance public IPs to host group
+      add_host: hostname={{ item.public_ip }} groups=ec2hosts
+      loop: "{{ ec2.instances }}"
+
+- name: DockerContainer AWS Integration
+  hosts: ec2hosts
+  gather_facts: true
+  tasks:
+    - name: Docker Yum Repo
+      yum_repository:
+        name: docker
+        description: Docker YUM repo
+        baseurl: https://download.docker.com/linux/centos/7/x86_64/stable/
+        gpgcheck: no
+
+    - name: Install Docker Services
+      package:
+        name: docker-ce-18.09.1-3.e17.x86_64
+        state: present
+
+    - name: Enable Docker
+      service:
+        name: "docker"
+        state: started
+        enabled: yes
+
+    - name: Python Docker Installation
+      command: pip3 install docker
+
+    - name: Docker Image Upload 1/2
+      docker_image:
+        load_path: ../raapi.tar
+
+    - name: Docker Image Upload 2/2
+      docker_image:
+        load_path: ../raweb.tar
+
+    - name: RAapi Container Launch
+      docker_container:
+        name: raapi
+        image: devops-redacre_raapi
+        state: started
+        ports:
+          - "5020:5000"
+    - name: RAweb Container Launch
+      docker_container:
+        name: raweb
+        image: devops-redacre_raweb
+        state: started
+        ports:
+          - "3000:3000"
+
+    - name: nginx Container Launch
+      docker_container:
+        name: ranginx
+        image: nginx
+        state: started
+        exposed_ports:
+          - "80"
+          - "3000"
+          - "5020"
+        volumes:
+          - "./data/nginx/:/etc/nginx/conf.d/"
+        ports:
+          - "80:80"
+
+

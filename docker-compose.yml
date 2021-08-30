@@ -1,0 +1,32 @@
+version: "3.9"
+services:
+  raapi:
+    build: ./api/
+    ports:
+      - "5020:5000"
+    networks:
+      - raapi
+  raweb:
+    build: ./sys-stats/
+    ports:
+      - "3000:3000"
+    networks:
+      - raweb
+  nginx:
+    image: "nginx:alpine"
+    depends_on:
+      - raapi
+      - raweb
+    expose:
+      - "3000"
+      - "5020"
+    ports:
+      - "80:80"
+    volumes:
+      - "./data/nginx/:/etc/nginx/conf.d/"
+    networks:
+      - raweb
+      - raapi
+networks:
+  raweb:
+  raapi:
