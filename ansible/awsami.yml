@@ -6,8 +6,8 @@
   vars:
     keyname: my_aws
     region: "us-east-2"
-    ec2_access_key: 'AKIAVAZK2LN4UCIL3F77'
-    ec2_secret_key: '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'
+    ec2_access_key: 'XXXXXXXXXXXXXXXXXX'
+    ec2_secret_key: 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
 
   tasks:
     - ec2_instance_facts:
